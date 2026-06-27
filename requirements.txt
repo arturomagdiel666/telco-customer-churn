@@ -1,0 +1,29 @@
+# Customer Churn Analysis — dependencias de RUNTIME (producción / Railway)
+# -----------------------------------------------------------------------
+# Solo lo necesario para ejecutar el dashboard Streamlit y cargar el modelo.
+# Las herramientas de desarrollo (jupyter, nbconvert, playwright, markdown)
+# viven en dev-requirements.txt para no ralentizar el build de Railway.
+# Instalar con:  pip install -r requirements.txt
+
+# Núcleo de ciencia de datos
+pandas>=2.2
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
+
+# Visualización
+matplotlib>=3.8
+seaborn>=0.13
+plotly>=5.18
+
+# Modelos avanzados
+xgboost>=2.0
+
+# Interpretabilidad
+shap>=0.44
+
+# Dashboard web
+streamlit>=1.30
+
+# Serialización de modelos
+joblib>=1.3

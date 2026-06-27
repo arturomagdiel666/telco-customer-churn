@@ -1,0 +1,17 @@
+# Customer Churn Analysis — dependencias de DESARROLLO
+# -----------------------------------------------------------------------
+# NO se instalan en producción (Railway). Solo para reproducir notebooks,
+# generar el PDF del reporte y la validación visual del dashboard.
+# Instalar con:  pip install -r requirements.txt -r dev-requirements.txt
+
+# Notebooks (ETL, EDA, modelado)
+jupyter>=1.0
+ipykernel>=6.0
+nbconvert>=7.0
+
+# Generación del reporte PDF (reports/build_pdf.py)
+markdown>=3.5
+
+# Validación visual del dashboard (capturas reales de navegador)
+# Tras instalar:  python -m playwright install chromium
+playwright>=1.40

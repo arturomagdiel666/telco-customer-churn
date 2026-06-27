@@ -1,0 +1,644 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Reporte Customer Churn</title><style>
+@page { size: A4; margin: 18mm 16mm; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+       font-size: 11pt; line-height: 1.5; color: #1b2a32; max-width: 100%; }
+h1 { color: #264653; font-size: 22pt; border-bottom: 3px solid #2a9d8f; padding-bottom: 6px; }
+h2 { color: #264653; font-size: 16pt; border-bottom: 1px solid #d8e2e0; padding-bottom: 4px;
+     margin-top: 26px; page-break-after: avoid; }
+h3 { color: #2a9d8f; font-size: 12.5pt; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 9.5pt; page-break-inside: avoid; }
+th, td { border: 1px solid #c9d6d3; padding: 5px 8px; text-align: left; }
+th { background: #2a9d8f; color: #fff; }
+tr:nth-child(even) td { background: #f3f8f6; }
+img { max-width: 100%; height: auto; display: block; margin: 10px auto;
+      border: 1px solid #e0e6e5; border-radius: 4px; page-break-inside: avoid; }
+em { color: #5a6f76; }
+blockquote { border-left: 4px solid #e9c46a; background: #fdf6e3; margin: 12px 0;
+             padding: 8px 14px; color: #6b5a1f; page-break-inside: avoid; }
+code { background: #eef3f2; padding: 1px 4px; border-radius: 3px; font-size: 9pt; }
+pre { background: #1b2a32; color: #e8eef0; padding: 12px; border-radius: 6px;
+      overflow-x: auto; font-size: 8.5pt; page-break-inside: avoid; }
+pre code { background: transparent; color: inherit; }
+hr { border: none; border-top: 1px solid #d8e2e0; margin: 20px 0; }
+</style></head>
+<body><h1 id="prediccion-de-fuga-de-clientes-customer-churn-reporte-academico">Predicción de Fuga de Clientes (Customer Churn) — Reporte Académico</h1>
+<p><strong>Proyecto:</strong> Telco Customer Churn · Curso Python — Clase 9
+<strong>Modelo de producción:</strong> RandomForest (<code>class_weight='balanced'</code>, <code>max_depth=10</code>, <code>n_estimators=400</code>, <code>min_samples_split=10</code>)
+<strong>Semilla global:</strong> <code>RANDOM_STATE = 42</code>
+<strong>Fecha:</strong> 2026-06-27</p>
+<hr />
+<h2 id="indice">Índice</h2>
+<ol>
+<li><a href="#1-resumen-ejecutivo">Resumen ejecutivo</a></li>
+<li><a href="#2-introducción-y-contexto">Introducción y contexto</a></li>
+<li><a href="#3-dataset-y-exploración">Dataset y exploración</a></li>
+<li><a href="#4-metodología">Metodología</a></li>
+<li><a href="#5-modelado-y-resultados">Modelado y resultados</a></li>
+<li><a href="#6-análisis-de-resultados">Análisis de resultados</a></li>
+<li><a href="#7-conclusiones-e-insights">Conclusiones e insights</a></li>
+<li><a href="#8-apéndice">Apéndice</a></li>
+</ol>
+<hr />
+<h2 id="1-resumen-ejecutivo">1. Resumen ejecutivo</h2>
+<p>Una empresa de telecomunicaciones pierde clientes (<em>churn</em>) a un ritmo del <strong>26.5 %</strong> (1,869 de 7,043 clientes). Como retener es entre 5 y 25 veces más barato que adquirir, anticipar <strong>quién</strong> se irá y <strong>por qué</strong> permite enfocar campañas de retención en lugar de actuar a ciegas.</p>
+<p>Tras un análisis exploratorio (EDA) y pruebas estadísticas formales (notebook <code>01_etl_eda.ipynb</code>), se entrenaron y compararon tres modelos de clasificación (notebook <code>02_modeling.ipynb</code>): <strong>Regresión Logística</strong>, <strong>Random Forest</strong> y <strong>XGBoost</strong>, optimizando como métrica principal el <strong>F1 de la clase churn</strong> (clase positiva, minoritaria y desbalanceada).</p>
+<p>El modelo seleccionado para producción es <strong>Random Forest</strong>, con los siguientes resultados sobre el conjunto de prueba (20 % no visto, <em>split</em> estratificado):</p>
+<table>
+<thead>
+<tr>
+<th>Métrica</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F1 (churn)</td>
+<td><strong>0.631</strong></td>
+</tr>
+<tr>
+<td>Recall (churn)</td>
+<td><strong>0.778</strong></td>
+</tr>
+<tr>
+<td>Precision (churn)</td>
+<td>0.530</td>
+</tr>
+<tr>
+<td>PR-AUC</td>
+<td>0.657</td>
+</tr>
+<tr>
+<td>ROC-AUC</td>
+<td>0.843</td>
+</tr>
+<tr>
+<td>Accuracy</td>
+<td>0.758</td>
+</tr>
+</tbody>
+</table>
+<p>El modelo <strong>identifica ~78 % de los clientes que efectivamente se van</strong> (recall), lo que habilita priorización de retención sobre el segmento de mayor riesgo. Los principales motores de fuga son el <strong>tipo de contrato</strong>, la <strong>antigüedad</strong> (<em>tenure</em>) y la <strong>ausencia de servicios de soporte/seguridad</strong>.</p>
+<blockquote>
+<p><strong>📌 Nota metodológica (honestidad científica).</strong> RandomForest lidera en F1, pero XGBoost obtiene mayor PR-AUC y Recall; la diferencia en F1 es muy pequeña (<strong>Δ = 0.0102</strong>). La elección de RF se justifica por interpretabilidad pedagógica, no por superioridad estadística contundente. Ver §5 para el texto literal.</p>
+</blockquote>
+<p>Las tres hipótesis del proyecto (H1: contrato, H2: antigüedad, H3: soporte) quedaron <strong>validadas</strong> con evidencia estadística y de importancia de variables.</p>
+<hr />
+<h2 id="2-introduccion-y-contexto">2. Introducción y contexto</h2>
+<h3 id="21-el-problema">2.1 El problema</h3>
+<p>Una compañía de telecomunicaciones (telco) quiere <strong>anticipar qué clientes están a punto de darse de baja</strong> para intervenir con campañas de retención dirigidas. El churn es un problema de negocio crítico: el costo de adquirir un cliente nuevo supera ampliamente el de retener uno existente, por lo que cada punto de churn evitado tiene impacto directo en los ingresos recurrentes.</p>
+<h3 id="22-preguntas-del-proyecto">2.2 Preguntas del proyecto</h3>
+<ol>
+<li><strong>¿Qué tipo de clientes</strong> tienen más probabilidad de irse?</li>
+<li><strong>¿El tipo de contrato</strong> (mensual vs anual) afecta la retención?</li>
+<li><strong>¿Qué recomendaciones accionables</strong> reducen la fuga?</li>
+</ol>
+<h3 id="23-hipotesis">2.3 Hipótesis</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Hipótesis</th>
+<th>Métrica/Prueba de validación</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>H1</strong></td>
+<td>El tipo de contrato influye en el churn</td>
+<td>Chi² + Cramér's V; importancia en el modelo</td>
+</tr>
+<tr>
+<td><strong>H2</strong></td>
+<td>A menor antigüedad (<em>tenure</em>), mayor churn</td>
+<td>Mann-Whitney / Welch; importancia numérica</td>
+</tr>
+<tr>
+<td><strong>H3</strong></td>
+<td>La falta de servicios de soporte aumenta el churn</td>
+<td>Chi² + Cramér's V sobre <code>online_security</code>, <code>tech_support</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="24-metrica-principal">2.4 Métrica principal</h3>
+<p>Dado que la clase de interés (churn = 1) es <strong>minoritaria (~26.5 %)</strong>, la <em>accuracy</em> es engañosa. Se optimiza el <strong>F1 de la clase churn</strong>, que equilibra <em>precision</em> y <em>recall</em>, y se reporta además <strong>PR-AUC</strong> (más informativa que ROC-AUC en problemas desbalanceados) y <strong>recall</strong> (coste de no detectar a un cliente que se va).</p>
+<hr />
+<h2 id="3-dataset-y-exploracion">3. Dataset y exploración</h2>
+<h3 id="31-descripcion">3.1 Descripción</h3>
+<p>El dataset Telco Customer Churn contiene <strong>7,043 clientes</strong> y <strong>21 variables originales</strong> (más <code>tenure_group</code>, derivada en <em>feature engineering</em>). El objetivo es la variable binaria <code>churn</code>.</p>
+<h3 id="32-tabla-de-calidad-de-datos">3.2 Tabla de calidad de datos</h3>
+<table>
+<thead>
+<tr>
+<th>Aspecto</th>
+<th>Resultado</th>
+<th>Acción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Registros</td>
+<td>7,043</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Variables</td>
+<td>21 originales + 1 derivada (<code>tenure_group</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Duplicados</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Nulos (tras limpieza)</td>
+<td>0</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>TotalCharges</code> no numérico</td>
+<td>11 registros (espacios en blanco)</td>
+<td>Coerción a numérico + imputación</td>
+</tr>
+<tr>
+<td>Clientes con <code>tenure = 0</code></td>
+<td>11 (<strong>0.156 %</strong> del dataset)</td>
+<td><code>TotalCharges</code> imputado a 0.0</td>
+</tr>
+<tr>
+<td>Variable objetivo <code>churn</code></td>
+<td>26.5 % positivos (1,869)</td>
+<td>Clase desbalanceada → <code>class_weight='balanced'</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-justificacion-de-la-imputacion-de-totalcharges-00">3.3 Justificación de la imputación de <code>TotalCharges = 0.0</code></h3>
+<p>Los <strong>11 clientes con <code>tenure = 0</code></strong> corresponden a altas recientes que aún no han generado un ciclo de facturación; su <code>TotalCharges</code> viene como cadena vacía en el CSV original. Se imputó <strong><code>TotalCharges = 0.0</code></strong> porque es la interpretación semánticamente correcta: un cliente con cero meses de antigüedad <strong>no ha acumulado cargos totales</strong>.</p>
+<p><strong>Alternativa descartada — eliminar las filas:</strong> se evaluó eliminar esos 11 registros, pero se descartó porque <strong>sesgaría la muestra de clientes nuevos</strong> (<code>tenure</code> bajo), justamente el segmento de <strong>mayor churn</strong> (47.4 % en 0–12 meses) y el más relevante para el negocio. Eliminarlos empobrecería el aprendizaje del modelo sobre el perfil de alto riesgo. Al representar <strong>&lt; 0.2 % del dataset</strong>, la imputación a 0.0 es de impacto despreciable y no introduce ruido.</p>
+<h3 id="34-exploracion-eda">3.4 Exploración (EDA)</h3>
+<p><strong>Distribución del objetivo</strong> — el dataset está desbalanceado (~73.5 % no churn / 26.5 % churn):</p>
+<p><img alt="Distribución de la variable objetivo churn (no churn vs churn)" src="figures/01_target_distribution.png" />
+<em>Figura 1. Distribución de la variable objetivo: ~73.5 % de clientes retenidos frente a ~26.5 % que abandonan.</em></p>
+<p><strong>Distribuciones numéricas</strong> — <code>tenure</code>, <code>monthly_charges</code> y <code>total_charges</code> segmentadas por churn:</p>
+<p><img alt="Distribuciones de variables numéricas por estado de churn" src="figures/02_numeric_distributions.png" />
+<em>Figura 2. Los clientes que se van concentran tenure bajo y cargos mensuales altos.</em></p>
+<p><strong>Tasa de churn por categoría</strong> — evidencia visual de qué categorías disparan la fuga:</p>
+<p><img alt="Tasa de churn por variable categórica" src="figures/03_churn_rate_by_category.png" />
+<em>Figura 3. Tasa de churn por categoría: contrato mensual, fibra óptica y pago electronic check destacan.</em></p>
+<p><strong>Correlación entre numéricas</strong> — <code>tenure</code> y <code>total_charges</code> están fuertemente correlacionadas (≈0.83):</p>
+<p><img alt="Heatmap de correlación entre variables numéricas" src="figures/04_correlation_heatmap.png" />
+<em>Figura 4. Heatmap de correlación. La alta correlación tenure↔total_charges (VIF≈9.5) se conserva: los árboles son inmunes a multicolinealidad y la regresión está regularizada.</em></p>
+<p><strong>Tasas de churn observadas (datos limpios):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Categoría</th>
+<th>Tasa de churn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>contract</code></td>
+<td>Month-to-month</td>
+<td><strong>42.7 %</strong></td>
+</tr>
+<tr>
+<td><code>contract</code></td>
+<td>One year</td>
+<td>11.3 %</td>
+</tr>
+<tr>
+<td><code>contract</code></td>
+<td>Two year</td>
+<td><strong>2.8 %</strong></td>
+</tr>
+<tr>
+<td><code>tenure_group</code></td>
+<td>0–12 m</td>
+<td><strong>47.4 %</strong></td>
+</tr>
+<tr>
+<td><code>tenure_group</code></td>
+<td>49–72 m</td>
+<td>9.5 %</td>
+</tr>
+<tr>
+<td><code>internet_service</code></td>
+<td>Fiber optic</td>
+<td><strong>41.9 %</strong></td>
+</tr>
+<tr>
+<td><code>internet_service</code></td>
+<td>DSL</td>
+<td>19.0 %</td>
+</tr>
+<tr>
+<td><code>tech_support</code></td>
+<td>No</td>
+<td><strong>41.6 %</strong></td>
+</tr>
+<tr>
+<td><code>tech_support</code></td>
+<td>Yes</td>
+<td>15.2 %</td>
+</tr>
+<tr>
+<td><code>payment_method</code></td>
+<td>Electronic check</td>
+<td><strong>45.3 %</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-metodologia">4. Metodología</h2>
+<h3 id="41-limpieza-de-datos-srcdata_cleaningpy">4.1 Limpieza de datos (<code>src/data_cleaning.py</code>)</h3>
+<ul>
+<li>Normalización de nombres de columnas a <strong>snake_case</strong>.</li>
+<li>Coerción de <code>TotalCharges</code> a numérico e imputación de los 11 <code>tenure = 0</code> a 0.0 (§3.3).</li>
+<li>Verificación de duplicados (0) y consistencia de categorías.</li>
+<li><em>Feature engineering</em>: <code>tenure_group</code> (0–12 m, 13–24 m, 25–48 m, 49–72 m).</li>
+</ul>
+<h3 id="42-seleccion-de-variables">4.2 Selección de variables</h3>
+<p>Se descartaron <strong><code>gender</code></strong> y <strong><code>phone_service</code></strong> por resultar <strong>no significativas</strong> en las pruebas Chi² (p &gt; 0.05, Cramér's V ≈ 0.01), evitando ruido sin pérdida de señal.</p>
+<h3 id="43-split-estratificado-8020">4.3 <em>Split</em> estratificado 80/20</h3>
+<ul>
+<li>División <strong>train/test = 80/20</strong>, <strong>estratificada</strong> por <code>churn</code> para preservar la proporción de clases (26.5 %) en ambos conjuntos.</li>
+<li><code>random_state = 42</code> en todo el pipeline (reproducibilidad).</li>
+<li>Conjunto de prueba: <strong>1,409 clientes</strong> (374 churn / 1,035 no churn).</li>
+</ul>
+<h3 id="44-pipeline-de-preprocesamiento">4.4 Pipeline de preprocesamiento</h3>
+<p>Se usa un <code>Pipeline</code> de scikit-learn con <code>ColumnTransformer</code>:</p>
+<ul>
+<li><strong>Numéricas</strong> (<code>tenure</code>, <code>monthly_charges</code>, <code>total_charges</code>): estandarización (<code>StandardScaler</code>).</li>
+<li><strong>Categóricas</strong> (14 variables): <code>OneHotEncoder(handle_unknown='ignore')</code>.</li>
+<li>El preprocesamiento se <strong>ajusta solo con train</strong> (evita <em>data leakage</em>) y se serializa junto al modelo en <code>models/best_model.pkl</code>.</li>
+</ul>
+<h3 id="45-reproducibilidad">4.5 Reproducibilidad</h3>
+<p>Semilla 42 fijada en <em>split</em>, validación cruzada y modelos. Artefactos versionados: <code>best_model.pkl</code>, <code>metadata.json</code>, <code>model_comparison.json</code>.</p>
+<hr />
+<h2 id="5-modelado-y-resultados">5. Modelado y resultados</h2>
+<h3 id="51-modelos-comparados">5.1 Modelos comparados</h3>
+<p>Tres algoritmos entrenados sobre el mismo <em>split</em> y pipeline:</p>
+<ol>
+<li><strong>LogisticRegression</strong> (<code>class_weight='balanced'</code>) — <em>baseline</em> lineal interpretable.</li>
+<li><strong>RandomForest</strong> (<code>class_weight='balanced'</code>) — <em>ensemble</em> de árboles, robusto a multicolinealidad.</li>
+<li><strong>XGBoost</strong> — <em>gradient boosting</em>, alto poder predictivo.</li>
+</ol>
+<h3 id="52-tabla-comparativa-completa-6-metricas-conjunto-de-test">5.2 Tabla comparativa completa (6 métricas, conjunto de test)</h3>
+<table>
+<thead>
+<tr>
+<th>Modelo</th>
+<th>F1 (churn)</th>
+<th>Recall</th>
+<th>Precision</th>
+<th>PR-AUC</th>
+<th>ROC-AUC</th>
+<th>Accuracy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LogisticRegression</td>
+<td>0.6144</td>
+<td>0.7861</td>
+<td>0.5043</td>
+<td>0.6338</td>
+<td>0.8421</td>
+<td>0.7381</td>
+</tr>
+<tr>
+<td><strong>🏆 RandomForest</strong></td>
+<td><strong>0.6306</strong></td>
+<td>0.7781</td>
+<td><strong>0.5301</strong></td>
+<td>0.6574</td>
+<td><strong>0.8426</strong></td>
+<td><strong>0.7580</strong></td>
+</tr>
+<tr>
+<td>XGBoost</td>
+<td>0.6204</td>
+<td><strong>0.7888</strong></td>
+<td>0.5113</td>
+<td><strong>0.6640</strong></td>
+<td>0.8414</td>
+<td>0.7438</td>
+</tr>
+</tbody>
+</table>
+<p><em>(Negritas = mejor valor por columna.)</em></p>
+<h3 id="53-validacion-cruzada-y-tuning-de-hiperparametros">5.3 Validación cruzada y <em>tuning</em> de hiperparámetros</h3>
+<ul>
+<li><strong>Búsqueda de hiperparámetros</strong> (<code>GridSearchCV</code>/<code>RandomizedSearchCV</code>) con <strong>validación cruzada estratificada</strong> sobre train, optimizando F1 de churn.</li>
+<li><strong>Mejor F1 en CV (RandomForest): 0.637</strong> — consistente con el F1 de test (0.631), lo que indica <strong>ausencia de sobreajuste</strong>.</li>
+<li>Hiperparámetros ganadores:</li>
+</ul>
+<pre><code class="language-json">{
+  &quot;n_estimators&quot;: 400,
+  &quot;max_depth&quot;: 10,
+  &quot;min_samples_split&quot;: 10,
+  &quot;class_weight&quot;: &quot;balanced&quot;
+}
+</code></pre>
+<h3 id="54-curvas-roc-y-precision-recall">5.4 Curvas ROC y Precision-Recall</h3>
+<p><img alt="Curvas ROC de los tres modelos" src="figures/06_roc_curves.png" />
+<em>Figura 5. Curvas ROC. Los tres modelos son prácticamente equivalentes en ROC-AUC (≈0.842).</em></p>
+<p><img alt="Curvas Precision-Recall de los tres modelos" src="figures/07_pr_curves.png" />
+<em>Figura 6. Curvas Precision-Recall. XGBoost lidera en PR-AUC (0.664), seguido de RandomForest (0.657); ambas muy por encima del azar (0.265).</em></p>
+<h3 id="55-nota-metodologica-texto-literal">5.5 Nota metodológica (texto literal)</h3>
+<p>El siguiente texto se reproduce <strong>verbatim</strong> desde <code>models/model_comparison.json['methodological_note']</code> y se muestra idéntico en el dashboard (página <em>Modelado</em>) y en este reporte:</p>
+<blockquote>
+<p>RandomForest se eligió como modelo de producción por liderar en F1(clase=1), métrica principal del proyecto. Sin embargo, XGBoost obtiene mayor PR-AUC y Recall, métricas también relevantes en clasificación con clases desbalanceadas. La diferencia en F1 entre ambos (Δ=0.0102) es estadísticamente muy pequeña; en producción se recomendaría validar la elección con un segundo split o con bootstrap. Este proyecto opta por RF por su mejor interpretabilidad pedagógica.</p>
+</blockquote>
+<hr />
+<h2 id="6-analisis-de-resultados">6. Análisis de resultados</h2>
+<h3 id="61-importancia-de-variables">6.1 Importancia de variables</h3>
+<p><img alt="Importancia de variables del modelo RandomForest (top 15)" src="figures/05_feature_importance.png" />
+<em>Figura 7. Importancia de variables (RandomForest). Lideran tenure, total_charges, contract_Two year, monthly_charges y internet_service_Fiber optic.</em></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Variable</th>
+<th>Importancia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>tenure</code></td>
+<td>0.185</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>total_charges</code></td>
+<td>0.141</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>contract_Two year</code></td>
+<td>0.108</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>monthly_charges</code></td>
+<td>0.099</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>internet_service_Fiber optic</code></td>
+<td>0.075</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>payment_method_Electronic check</code></td>
+<td>0.055</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>contract_One year</code></td>
+<td>0.043</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>online_security_Yes</code></td>
+<td>0.034</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>tech_support_Yes</code></td>
+<td>0.025</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62-matriz-de-confusion-randomforest-test">6.2 Matriz de confusión (RandomForest, test)</h3>
+<p><img alt="Matriz de confusión del modelo ganador" src="figures/08_confusion_matrix.png" />
+<em>Figura 8. Matriz de confusión sobre 1,409 clientes de test.</em></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Pred: No churn</th>
+<th>Pred: Churn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Real: No churn</strong></td>
+<td>777 (TN)</td>
+<td>258 (FP)</td>
+</tr>
+<tr>
+<td><strong>Real: Churn</strong></td>
+<td>83 (FN)</td>
+<td>291 (TP)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Recall = 291 / (291+83) = 0.778</strong> → se capturan ~78 % de los churners reales.</li>
+<li><strong>Precision = 291 / (291+258) = 0.530</strong> → ~53 % de las alertas son churn real.</li>
+<li>El modelo prioriza <strong>recall</strong> (no perder clientes que se van) sobre precision, decisión coherente con el costo asimétrico del churn.</li>
+</ul>
+<h3 id="63-explicabilidad-shap">6.3 Explicabilidad SHAP</h3>
+<p><img alt="Resumen SHAP de impacto de variables" src="figures/09_shap_summary.png" />
+<em>Figura 9. SHAP summary. tenure bajo, contrato mensual, fibra óptica y ausencia de soporte empujan la predicción hacia churn.</em></p>
+<p>El dashboard incluye explicaciones SHAP <strong>por cliente</strong> (<em>waterfall</em>). Para un cliente de alto riesgo (mes-a-mes, <em>tenure</em> ≈ 2, fibra óptica, sin soporte, <em>electronic check</em>) la probabilidad estimada es <strong>70.2 % → 🔴 Riesgo ALTO</strong>, con <code>tenure</code> bajo y <code>internet_service_Fiber optic</code> como principales impulsores de fuga:</p>
+<p><img alt="Predicción interactiva: cliente de alto riesgo, gauge rojo y waterfall SHAP" src="figures/dashboard/05_prediccion.png" />
+<em>Figura 10. Página de predicción del dashboard: gauge en rojo (70.2 %) y waterfall SHAP del cliente.</em></p>
+<h3 id="64-validacion-de-hipotesis">6.4 Validación de hipótesis</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Hipótesis</th>
+<th>Estado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>H1</strong></td>
+<td>El contrato influye en el churn</td>
+<td>✅ <strong>Validada</strong></td>
+<td><code>contract</code> es la categórica #1 (Cramér's V = 0.41); churn M2M 42.7 % vs Two year 2.8 %</td>
+</tr>
+<tr>
+<td><strong>H2</strong></td>
+<td>Menor <em>tenure</em> → mayor churn</td>
+<td>✅ <strong>Validada</strong></td>
+<td><code>tenure</code> es la numérica más importante (0.185); 0–12 m → 47.4 % churn</td>
+</tr>
+<tr>
+<td><strong>H3</strong></td>
+<td>Falta de soporte → mayor churn</td>
+<td>✅ <strong>Validada</strong></td>
+<td><code>online_security</code> y <code>tech_support</code> significativas (Chi²); tech_support No → 41.6 % churn</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-conclusiones-e-insights">7. Conclusiones e insights</h2>
+<h3 id="71-respuesta-a-las-3-preguntas-del-proyecto">7.1 Respuesta a las 3 preguntas del proyecto</h3>
+<p><strong>1) ¿Qué tipo de clientes tienen más probabilidad de irse?</strong>
+Perfil de alto riesgo: contrato <strong>mes-a-mes</strong>, <strong>antigüedad baja</strong> (0–12 meses, churn ≈ <strong>47 %</strong>), <strong>fibra óptica</strong> (churn ≈ 42 %), <strong>sin</strong> seguridad online ni soporte técnico, y pago por <strong>electronic check</strong> (churn ≈ 45 %).</p>
+<p><strong>2) ¿El contrato mensual vs anual afecta la retención?</strong>
+Drásticamente. El churn pasa de <strong>42.7 %</strong> en contratos <strong>mes-a-mes</strong> a <strong>2.8 %</strong> en contratos <strong>a dos años</strong> — una diferencia de <strong>~40 puntos</strong>. El contrato es el factor protector más fuerte del modelo.</p>
+<p><strong>3) Recomendaciones accionables</strong> (ver §7.2).</p>
+<h3 id="72-recomendaciones-accionables">7.2 Recomendaciones accionables</h3>
+<ol>
+<li><strong>Incentivar contratos anuales/bianuales</strong> (descuento o beneficio por migrar desde mes-a-mes): es la palanca de mayor impacto esperado.</li>
+<li><strong>Reforzar el <em>onboarding</em></strong> en los primeros 12 meses con seguimiento proactivo, donde se concentra casi la mitad de la fuga.</li>
+<li><strong>Empaquetar seguridad online y soporte técnico</strong>, ambos asociados a menor churn.</li>
+<li><strong>Revisar la experiencia de fibra óptica</strong>, segmento con churn elevado (≈42 %): calidad, precio o expectativas.</li>
+<li><strong>Promover métodos de pago automáticos</strong> frente a <em>electronic check</em> (45 % churn).</li>
+<li><strong>Usar el modelo para priorizar retención</strong>: enfocar campañas en el top de riesgo (recall ~78 %) en lugar de acciones masivas.</li>
+<li><strong>Medir con A/B testing</strong> el efecto causal real de cada acción antes de escalar.</li>
+</ol>
+<h3 id="73-limitaciones">7.3 Limitaciones</h3>
+<ul>
+<li><strong>Datos transversales (<em>snapshot</em>):</strong> sin secuencia temporal no se modela <em>cuándo</em> ocurrirá la fuga, solo la propensión actual.</li>
+<li><strong>No causalidad:</strong> las asociaciones (p. ej. fibra ↔ churn) no implican causa; puede haber confusores (precio, zona, competencia).</li>
+<li><strong>Variables ausentes:</strong> sin quejas, tickets de soporte, NPS ni datos de competencia, que probablemente mejorarían los casos difíciles.</li>
+<li><strong>Imputación de <code>TotalCharges</code>:</strong> 11 clientes con <code>tenure = 0</code> imputados a 0.0 (&lt; 0.2 %); razonable pero es un supuesto.</li>
+<li><strong>Empate técnico RF/XGBoost:</strong> la elección de RF no es estadísticamente contundente (Δ F1 = 0.0102); ver nota metodológica (§5.5).</li>
+</ul>
+<h3 id="74-proximos-pasos">7.4 Próximos pasos</h3>
+<ul>
+<li><strong>A/B testing</strong> de las recomendaciones para estimar impacto causal real.</li>
+<li><strong>Monitoreo en producción</strong> del <em>drift</em> de datos y del rendimiento del modelo.</li>
+<li><strong>Reentrenamiento periódico</strong> con datos frescos y nuevas variables (quejas, NPS).</li>
+<li><strong>Validar el empate RF/XGBoost</strong> con <em>bootstrap</em> o un segundo <em>split</em> temporal.</li>
+</ul>
+<hr />
+<h2 id="8-apendice">8. Apéndice</h2>
+<h3 id="81-codigo-reproducible">8.1 Código reproducible</h3>
+<p>Estructura del proyecto:</p>
+<pre><code>customer_churn_project/
+├── data/
+│   ├── raw/                      # CSV original
+│   └── processed/churn_clean.csv # dataset limpio
+├── src/
+│   ├── data_loader.py            # carga
+│   ├── data_cleaning.py          # limpieza + feature engineering
+│   ├── data_quality.py           # reporte de calidad
+│   ├── eda.py                    # gráficos EDA
+│   ├── stats_tests.py            # Shapiro, Levene, Welch, Mann-Whitney, Chi², Cramér's V
+│   └── modeling.py               # pipeline, entrenamiento, comparación
+├── notebooks/
+│   ├── 01_etl_eda.ipynb          # ETL + EDA + pruebas estadísticas
+│   └── 02_modeling.ipynb         # modelado + comparación + artefactos
+├── models/
+│   ├── best_model.pkl            # pipeline ganador (RandomForest)
+│   ├── metadata.json             # features, rangos, hiperparámetros, métricas
+│   └── model_comparison.json     # métricas 3 modelos, curvas, nota metodológica
+├── app/dashboard.py              # dashboard Streamlit (6 páginas)
+└── reports/
+    ├── report.md / report.pdf    # este documento
+    └── figures/                  # figuras de notebooks + dashboard/
+</code></pre>
+<p><strong>Reproducir</strong> (ver checklist en <code>README.md</code> → <em>Verificación</em>):</p>
+<pre><code class="language-bash">pip install -r requirements.txt
+jupyter nbconvert --to notebook --execute notebooks/01_etl_eda.ipynb
+jupyter nbconvert --to notebook --execute notebooks/02_modeling.ipynb
+streamlit run app/dashboard.py
+</code></pre>
+<h3 id="82-lista-de-figuras">8.2 Lista de figuras</h3>
+<p><strong>Figuras de análisis (<code>reports/figures/</code>):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Fig.</th>
+<th>Archivo</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>01_target_distribution.png</code></td>
+<td>Distribución del objetivo churn</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>02_numeric_distributions.png</code></td>
+<td>Distribuciones numéricas por churn</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>03_churn_rate_by_category.png</code></td>
+<td>Tasa de churn por categoría</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>04_correlation_heatmap.png</code></td>
+<td>Correlación entre numéricas</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>06_roc_curves.png</code></td>
+<td>Curvas ROC (3 modelos)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>07_pr_curves.png</code></td>
+<td>Curvas Precision-Recall (3 modelos)</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>05_feature_importance.png</code></td>
+<td>Importancia de variables (RF)</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>08_confusion_matrix.png</code></td>
+<td>Matriz de confusión (RF)</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>09_shap_summary.png</code></td>
+<td>SHAP summary</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Capturas del dashboard (<code>reports/figures/dashboard/</code>):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Archivo</th>
+<th>Página</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>01_inicio.png</code></td>
+<td>Inicio / KPIs</td>
+</tr>
+<tr>
+<td><code>02_exploracion.png</code></td>
+<td>Exploración de datos</td>
+</tr>
+<tr>
+<td><code>03_pruebas_estadisticas.png</code></td>
+<td>Pruebas estadísticas</td>
+</tr>
+<tr>
+<td><code>04_modelado.png</code></td>
+<td>Modelado y comparación</td>
+</tr>
+<tr>
+<td><code>05_prediccion.png</code></td>
+<td>Predicción interactiva (Fig. 10)</td>
+</tr>
+<tr>
+<td><code>06_reporte_cientifico.png</code></td>
+<td>Reporte científico</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Material académico — Curso Python Clase 9. Generado el 2026-06-27.</em></p></body></html>
