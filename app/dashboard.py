@@ -603,15 +603,30 @@ def page_reporte(df: pd.DataFrame, comp: dict, meta: dict) -> None:
         """
     )
 
-    # --- Video explicativo embebido ---
-    st.markdown("---")
-    st.subheader("🎥 Video explicativo del proyecto")
-    uploaded_video = st.file_uploader("Subir video (MP4/MOV/WEBM)", type=["mp4", "mov", "webm"])
-    if uploaded_video is not None:
-        st.video(uploaded_video)
-    else:
-        st.info("Sube un video explicativo (p. ej., desde NotebookLM) para verlo embebido aquí.")
+    footer()
 
+
+# ============================================================================
+# PÁGINA 7 — Video Explicativo
+# ============================================================================
+def page_video() -> None:
+    st.title("🎬 Video Explicativo del Proyecto")
+    st.write(
+        "Como cierre del proyecto, te invitamos a ver este breve video que resume "
+        "el problema, el análisis y los resultados principales. ▶️"
+    )
+
+    # Ruta ASCII (sin acentos) para evitar problemas de encoding Windows→Linux.
+    video_path = ROOT / "video" / "prediccion_fuga_clientes.mp4"
+    if video_path.exists():
+        st.video(str(video_path))
+    else:
+        st.warning("El archivo de video no está disponible en este momento.")
+
+    st.caption(
+        "⚠️ El contenido de este video fue generado con inteligencia artificial "
+        "(NotebookLM) a partir del reporte académico del proyecto."
+    )
     footer()
 
 
@@ -624,7 +639,8 @@ def main() -> None:
     page = st.sidebar.radio(
         "Navegación",
         ["🏠 Inicio", "📊 Exploración de datos", "🧪 Pruebas estadísticas",
-         "🤖 Modelado y comparación", "🔮 Predicción interactiva", "📑 Reporte Científico"],
+         "🤖 Modelado y comparación", "🔮 Predicción interactiva", "📑 Reporte Científico",
+         "🎬 Video Explicativo"],
     )
 
     if not require_model():
@@ -647,6 +663,8 @@ def main() -> None:
         page_prediccion(df, model, meta)
     elif page == "📑 Reporte Científico":
         page_reporte(df, comp, meta)
+    elif page == "🎬 Video Explicativo":
+        page_video()
 
 
 if __name__ == "__main__":
