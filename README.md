@@ -12,9 +12,9 @@
 
 ## 🚀 Demo en vivo
 
-**🔗 [Abrir dashboard en Railway](https://telco-customer-churn-PRODUCTION.up.railway.app)**
+**🔗 [Abrir dashboard en Railway](https://web-production-fad88.up.railway.app)**
 
-> ⏳ *URL provisional — se actualizará con el enlace real una vez completado el despliegue en Railway.*
+> ✅ *Desplegado en Railway — el dashboard está disponible en vivo en el enlace de arriba.*
 
 ---
 
